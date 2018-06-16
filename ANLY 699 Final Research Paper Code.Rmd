@@ -1,0 +1,138 @@
+---
+title: "Final Paper"
+author: "Jialu"
+date: "6/8/2018"
+output: html_document
+---
+*******************************************************
+https://www.kaggle.com/dhaval8895/uber-statistics/code
+*******************************************************
+load all libraries
+```{r}
+library(lubridate)
+library(magrittr)
+library(dplyr) 
+library(ggmap)
+library(ggplot2)
+library(sp)
+library(maptools)
+library(rgdal)
+library(raster)
+#library(rgeos)
+library(plotly)
+library(tidyverse)
+library(viridis)
+library(knitr)
+library(DT)
+library(rgdal)
+library(scales)
+library(RColorBrewer)
+library(ggthemes)
+library(data.table)
+```
+
+
+
+load data files
+```{r}
+getwd()
+#setwd("/Users/jialu/Documents/Harrisburg University/ANLY 699 Applied Project in Analytics/Github assignment/FinalPaperProject/myData")
+uber_apr_14 <- read.csv("uber-raw-data-apr14.csv")
+uber_may_14 <- read.csv("uber-raw-data-may14.csv")
+
+UberJanJune15 <- read.csv("uber-raw-data-janjune-15.csv")
+
+head(uber_apr_14)
+```
+Binding all the Data into one
+```{r}
+uber_2014 <- rbind(uber_apr_14, uber_may_14)
+uber_2014$Date.Time <- mdy_hms(uber_2014$Date.Time)
+uber_2014$Day <- factor(day(uber_2014$Date.Time))
+uber_2014$Month <- factor(month(uber_2014$Date.Time))
+uber_2014$Year <- factor(year(uber_2014$Date.Time))
+uber_2014$Weekday <- factor(wday(uber_2014$Date.Time))
+uber_2014$Hour <- factor(hour(uber_2014$Date.Time))
+uber_2014$Minute <- factor(minute(uber_2014$Date.Time))
+uber_2014$Second <- factor(second(uber_2014$Date.Time))
+
+data.table(head(uber_2014))
+```
+
+No. of Uber Trips by Day made in New York City
+
+```{r}
+cols <- brewer.pal(8, "Paired")
+pal <- colorRampPalette(cols)
+trips_day <- group_by(uber_2014, Day) %>% summarise(Trips = n())
+data.table(trips_day)
+ggplot(trips_day, aes(Day, Trips)) + geom_bar(stat = "identity", fill = "maroon") +
+    ggtitle("No. of Uber Trips by Day made in New York City")
+
+```
+
+No. of Uber Trips by Day & Month made in New York City
+```{r}
+trips_day_month <- group_by(uber_2014, Day, Month) %>% summarise(Trips = n())
+ggplot(trips_day_month, aes(Day, Trips, fill = Month)) + geom_bar(stat = "identity") +
+    ggtitle("No. of Uber Trips by Day & Month made in New York City") + scale_y_continuous() +
+      scale_fill_manual(values = pal(6)) + facet_grid(Month ~ .)
+
+```
+
+No. of Uber Trips Happening in New York City Every Hour
+```{r}
+
+library(DT)
+library(ggplot2)
+cols <- brewer.pal(8, "Dark2")
+pal <- colorRampPalette(cols)
+trips_hour <- group_by(uber_2014, Hour) %>% summarise(Trips = n())
+data.table(trips_hour)
+ggplot(trips_hour, aes(Hour, Trips)) + geom_bar(stat = "identity", fill = "orange") + ggtitle("No. of Uber Trips Happening in New York City Every Hour")
+trips_hour_month <- group_by(uber_2014, Hour, Month) %>% summarise(Trips = n())
+ggplot(trips_hour_month, aes(Hour, Trips, fill = Month)) + geom_bar(stat = "identity") + ggtitle("No. of Uber Trips Happening in New York City Every Hour for Different Months") + scale_y_continuous() + scale_fill_manual(values = pal(6)) + facet_grid(Month ~ .)
+```
+
+conclusion: 16-20pm has the highest number of pickup. However, the morning pickups are a lot lower during the rushed hour. It's unclear whether surge pricing can mitigate peak demands
+
+##Uber Trips made According to The Days in New York City
+```{r}
+cols <- brewer.pal(8, "Spectral")
+pal <- colorRampPalette(cols)
+trips_wday <- group_by(uber_2014, Weekday) %>% summarise(Trips = n())
+datatable(trips_wday)
+ggplot(trips_wday, aes(Weekday, Trips)) + geom_bar(stat = "identity", fill = "Darkred") + ggtitle("No. of Uber Trips Happening in New York City For Different Days of the Week")
+trips_wday_month <- group_by(uber_2014, Weekday, Month) %>% summarise(Trips = n())
+ggplot(trips_wday_month, aes(Weekday, Trips, fill = Month)) + geom_bar(stat = "identity", position = "dodge") + ggtitle("No. of Uber Trips Happening in New York City for WeekDays of Different Months") + scale_y_continuous() + scale_fill_manual(values = pal(6))
+```
+```
+
+Heatmap for Uber Trips by BASE and Day
+
+```{r, echo = FALSE}
+trips_base_wday <- group_by(uber_2014, Base, Weekday) %>% summarise(Trips = n())
+ggplot(trips_base_wday, aes(Base, Weekday, fill = Trips)) + ggtitle("Heatmap of Uber Trips by BASE and Day") + geom_tile(color = "white")
+```
+
+
+Mapping the Uber Trips
+```{r}
+library(ggthemes) 
+min_lat <- 40.5774
+max_lat <- 40.9176
+min_long <- -74.15
+max_long <- -73.7004
+
+ggplot(uber_2014, aes(x=Lon, y=Lat, color = Base)) + geom_point(size = 0.06) + scale_x_continuous(limits=c(min_long, max_long)) +
+scale_y_continuous(limits=c(min_lat, max_lat)) + theme_map()
+
+```
+
+Number of Trips by day, time of day and borough
+conclusion: during weekdays, 18-21pm have the highest pickup, which is rush hour
+```{r}
+
+```
+
+
