@@ -1,0 +1,525 @@
+---
+title: "Final paper code consolidated"
+author: "Jialu Li"
+date: "6/11/2018"
+output: html_document
+---
+```{r}
+library(lubridate)
+library(magrittr)
+library(dplyr) 
+library(ggplot2)
+library(sp)
+library(maptools)
+library(rgdal)
+library(raster)
+library(plotly)
+library(viridis)
+library(knitr)
+library(DT)
+library(rgdal)
+library(scales)
+library(RColorBrewer)
+library(ggthemes)
+library(data.table)
+library(anytime)
+```
+
+
+#Data Visualization
+##load data files
+```{r}
+getwd()
+uber_apr_14 <- read.csv("uber-raw-data-apr14.csv")
+uber_may_14 <- read.csv("uber-raw-data-may14.csv")
+uber_jun_14 <- read.csv("uber-raw-data-jun14.csv")
+uber_jul_14 <- read.csv("uber-raw-data-jul14.csv")
+uber_aug_14 <- read.csv("uber-raw-data-aug14.csv")
+
+
+#UberJanJune15 <- read.csv("uber-raw-data-janjune-15.csv")
+
+head(uber_apr_14)
+```
+
+Binding all the Data into one
+```{r}
+uber_2014 <- rbind(uber_apr_14, uber_may_14,uber_jun_14,uber_jul_14,uber_aug_14)
+#uber_2014$Date.Time <- anytime(as.character(uber_2014$Date.Time))
+
+uber_2014$Date.Time <- as.character(uber_2014$Date.Time)
+
+uber_2014$Date.Time = as.POSIXct(uber_2014$Date.Time,format="%m/%d/%Y %H:%M")
+
+data.table(uber_2014,nrow=30)
+
+class(uber_2014$Date.Time)
+
+uber_2014$Day <- factor(day(uber_2014$Date.Time))
+uber_2014$Month <- factor(month(uber_2014$Date.Time))
+uber_2014$Year <- factor("2014")
+uber_2014$Weekday <- factor(wday(uber_2014$Date.Time))
+uber_2014$Hour <- factor(hour(uber_2014$Date.Time))
+
+
+data.table(head(uber_2014))
+data.table(uber_2014,nrow=30)
+```
+
+##No. of Uber Trips by Day made in New York City
+```{r}
+cols <- brewer.pal(8, "Paired")
+pal <- colorRampPalette(cols)
+trips_day <- group_by(uber_2014, Day) %>% summarise(Trips = n())
+data.table(trips_day)
+ggplot(trips_day, aes(Day, Trips)) + geom_bar(stat = "identity", fill = "maroon") +
+    ggtitle("No. of Uber Trips by Day made in New York City")
+```
+
+##No. of Uber Trips by Day & Month made in New York City
+```{r}
+trips_day_month <- group_by(uber_2014, Day, Month) %>% summarise(Trips = n())
+ggplot(trips_day_month, aes(Day, Trips, fill = Month)) + geom_bar(stat = "identity") +
+    ggtitle("No. of Uber Trips by Day & Month made in New York City") + scale_y_continuous() +
+      scale_fill_manual(values = pal(6)) + facet_grid(Month ~ .)
+
+```
+
+No. of Uber Trips Happening in New York City Every Hour
+```{r}
+library(DT)
+library(ggplot2)
+cols <- brewer.pal(8, "Dark2")
+pal <- colorRampPalette(cols)
+trips_hour <- group_by(uber_2014, Hour) %>% summarise(Trips = n())
+data.table(trips_hour)
+ggplot(trips_hour, aes(Hour, Trips)) + geom_bar(stat = "identity", fill = "orange") + ggtitle("No. of Uber Trips Happening in New York City Every Hour")
+trips_hour_month <- group_by(uber_2014, Hour, Month) %>% summarise(Trips = n())
+ggplot(trips_hour_month, aes(Hour, Trips, fill = Month)) + geom_bar(stat = "identity") + ggtitle("No. of Uber Trips Happening in New York City Every Hour for Different Months") + scale_y_continuous() + scale_fill_manual(values = pal(6)) + facet_grid(Month ~ .)
+```
+
+
+##Uber Trips made According to The Days in New York City
+```{r}
+cols <- brewer.pal(8, "Spectral")
+pal <- colorRampPalette(cols)
+trips_wday <- group_by(uber_2014, Weekday) %>% summarise(Trips = n())
+
+datatable(trips_wday)
+ggplot(trips_wday, aes(Weekday, Trips)) + geom_bar(stat = "identity", fill = "Darkred") + ggtitle("No. of Uber Trips Happening in New York City For Different Days of the Week")
+trips_wday_month <- group_by(uber_2014, Weekday, Month) %>% summarise(Trips = n())
+ggplot(trips_wday_month, aes(Weekday, Trips, fill = Month)) + geom_bar(stat = "identity", position = "dodge") + ggtitle("No. of Uber Trips Happening in New York City for WeekDays of Different Months") + scale_y_continuous() + scale_fill_manual(values = pal(6))
+```
+
+
+Heatmap for Uber Trips by BASE and Day
+```{r, echo = FALSE}
+trips_base_wday <- group_by(uber_2014, Base, Weekday) %>% summarise(Trips = n())
+ggplot(trips_base_wday, aes(Base, Weekday, fill = Trips)) + ggtitle("Heatmap of Uber Trips by BASE and Day") + geom_tile(color = "white")
+```
+
+
+#Pickup number comparison
+```{r}
+getwd()
+Uber_2015_raw <- read.csv("uber-raw-data-janjune-15.csv")
+
+Uber_2015_raw$Pickup_date = as.character(Uber_2015_raw$Pickup_date)
+Uber_2015_raw$Pickup_date_new = as.POSIXct(Uber_2015_raw$Pickup_date,format="%Y-%m-%d %H:%M")
+
+class(Uber_2015_raw$Pickup_date_new)
+
+
+Uber_2015_raw$Month <- month(Uber_2015_raw$Pickup_date_new)
+
+head(Uber_2015_raw)
+nrow(Uber_2015_raw)
+
+#data.table(head(Uber_2015_raw))
+
+```
+
+UBER: only select 2015 Jan and June month data to speed up
+```{r}
+
+Uber_2015_test_short= subset(Uber_2015_raw,Uber_2015_raw$Month == "1"|Uber_2015_raw$Month =="6" )
+nrow(Uber_2015_test_short)
+
+Uber_2015_test_short$Year = as.numeric("2015")
+
+head(Uber_2015_test_short) 
+
+```
+
+Get Uber 2015 April subset
+```{r}
+Uber_2015_Apr= subset(Uber_2015_raw,Uber_2015_raw$Month == "4" )
+
+Uber_2015_Apr$Hour <- as.numeric(factor(hour(Uber_2015_Apr$Pickup_date_new)))
+
+head(Uber_2015_Apr)
+
+#define rush hour as between 17pm-20pm
+Uber_2015_Apr_rushhour = subset(Uber_2015_Apr,Uber_2015_Apr$Hour>=17&Uber_2015_Apr$Hour<=20)
+Uber_2015_Apr_rushhour $Year = as.numeric("2014")
+head(Uber_2015_Apr_rushhour)
+```
+
+Tally the rush hour
+```{r}
+Uber_2015_Apr_by_month_hour <- Uber_2015_Apr_rushhour %>% 
+    group_by(Year,Month, Hour) %>% 
+    tally() %>% 
+    arrange(Year,Month, Hour)
+data.table(Uber_2015_Apr_by_month_hour)
+
+setnames(Uber_2015_Apr_by_month_hour,"n","2015_Uber_Apr_pickup_number")
+```
+
+Import 2014 April dataset
+```{r}
+head(uber_apr_14)
+class(uber_apr_14$Date.Time)
+
+uber_apr_14$Date.Time <- as.character(uber_apr_14$Date.Time)
+
+uber_apr_14$Date.Time.New <- as.POSIXct(uber_apr_14$Date.Time,format="%m/%d/%Y %H:%M")
+
+uber_apr_14$Month <- month(uber_apr_14$Date.Time.New)
+uber_apr_14$Hour <- as.numeric(factor(hour(uber_apr_14$Date.Time.New)))
+
+uber_apr_14$Year = as.numeric("2014")
+```
+define rush hour as between 17pm-20pm
+```{r}
+uber_apr_14_rushhour = subset(uber_apr_14,uber_apr_14$Hour>=17&uber_apr_14$Hour<=20)
+head(uber_apr_14_rushhour)
+```
+
+Tally the 2014 April rush hour
+```{r}
+uber_apr_14_by_month_hour <- uber_apr_14_rushhour %>% 
+    group_by(Year,Month, Hour) %>% 
+    tally() %>% 
+    arrange(Year,Month, Hour)
+data.table(uber_apr_14_by_month_hour)
+
+setnames(uber_apr_14_by_month_hour,"n","2015_Uber_Jun_pickup_number")
+```
+
+merge the 2 dataset
+```{r}
+rush_hour_comparison= merge(uber_apr_14_by_month_hour,Uber_2015_Apr_by_month_hour,by="Hour",all=FALSE )
+data.table(rush_hour_comparison)
+```
+
+
+Import 2014 June dataset
+```{r}
+head(uber_jun_14)
+class(uber_jun_14$Date.Time)
+
+uber_jun_14$Date.Time <- mdy_hms(uber_jun_14$Date.Time)
+
+uber_jun_14$Date.Time <- as.Date(uber_jun_14$Date.Time,format = "%m/%d/%Y")
+
+uber_jun_14$Month <- month(ymd(uber_jun_14$Date.Time))
+
+uber_jun_14$Year = as.numeric("2014")
+```
+
+UBER: Count 2015 Uber pickup Number of Trips by Month
+```{r} 
+library(dplyr)
+
+by_month_year <- Uber_2015_test_short %>% 
+    group_by(Month, Year) %>% 
+    tally() %>% 
+    arrange(Year, Month)
+data.table(by_month_year)
+```
+
+
+```{r}
+by_month_year_2014jun <- uber_jun_14 %>% 
+    group_by(Month, Year) %>% 
+    tally() %>% 
+    arrange(Year, Month)
+
+data.table(by_month_year_2014jun)
+```
+
+```{r}
+by_month_year_all= rbind(by_month_year_2014jun, by_month_year)
+
+by_month_year_all= subset(by_month_year_all[2:4,])
+by_month_year_all
+```
+
+UBER: Count 2015 Uber pickup Number of Trips by Date
+```{r} 
+library(dplyr)
+
+by_date_year <- Uber_2015_test_short %>% 
+    group_by(Pickup_date, Year) %>% 
+    tally() %>% 
+    arrange(Year, Pickup_date)
+head(data.table(by_date_year))
+```
+
+
+plot the histogram of Uber pickup number
+```{r}
+qplot(by_date_year$n, geom="histogram") 
+
+qplot(by_date_year$n,
+      geom="histogram",
+      binwidth = 1,  
+      main = "Histogram for 2015 Uber pickup number distribution", 
+      xlab = "Pickup number",  
+      fill=I("blue"), 
+      col=I("red"), 
+      alpha=I(.2),
+      xlim=c(0,125000))
+```
+
+
+
+
+
+```{r}
+
+uber_2015_pickupnumber <- read.csv("2015 Uber pickup data by date.csv")
+weather_2015 <- read.csv("2015 weather data.csv")
+
+
+uber_2015_pickupnumber$Date_2015 = as.Date(uber_2015_pickupnumber$Date_2015, format = "%m/%d/%Y")
+
+head(uber_2015_pickupnumber,nrow=40)
+
+weather_2015$Date_2015=as.Date(weather_2015$Date_2015, format = "%m/%d/%y") 
+head(weather_2015)
+
+```
+
+
+
+merge data 
+```{r}
+New_2015=merge(uber_2015_pickupnumber,weather_2015, by="Date_2015",all=FALSE)
+
+head(New_2015)  
+
+summary(New_2015)
+str(New_2015)
+```
+
+#convert precipitation into categorical event
+```{r}
+
+class(New_2015$Precipitation_inch)
+
+New_2015$Precipitation_inch= as.numeric(as.character(New_2015$Precipitation_inch))
+
+head(New_2015)
+
+```
+
+plot to analyze whether rainy days have more pickup
+conclusion: during rainy days have more pickup 
+```{r}
+ggplot(New_2015, aes(x=Rain_Event, y=Number_of_pickup)) +geom_boxplot()+ ggtitle("Number_of_pickup vs. Rain_Event") 
+
+```
+
+## two-way ANOVA
+p value = 0.014, i can reject null hypothesis that rainy days don't have higher pickup number
+```{r}
+results= lm(Number_of_pickup ~ Rain_Event, data=New_2015)
+anova(results)
+
+```
+
+check relevant model assumptions. This includes making QQ-plots and residual plots. 
+variance:doesn't violate the assumption that they need to have equal variances
+our assumptions about variance and normality are not violated 
+```{r}
+par(mfrow=c(2,2))
+plot(results)
+```
+
+
+
+linear modeling
+```{r}
+lm_temp=lm(Number_of_pickup ~ Temp_avg, data = New_2015)
+summary(lm_temp)
+plot(Number_of_pickup ~ Temp_avg, data = New_2015)+abline(lm_temp,lwd=2)
+
+```
+
+Lm with precipitation
+```{r}
+lm_precip= lm(Number_of_pickup~ Precipitation_inch,data = New_2015)
+summary(lm_precip)
+```
+
+
+```{r}
+lm_temp_3=lm(Number_of_pickup ~ Temp_avg+ Precipitation_inch+Temp_avg:Precipitation_inch, data = New_2015)
+summary(lm_temp_3)
+```
+
+
+
+##Analysis of covariance: ANCOVA: One continuous variable and one discrete variable
+```{r}
+ANCOVA_model = lm(Number_of_pickup ~ Temp_avg+Rain_Event, data = New_2015)
+anova(ANCOVA_model)
+summary(ANCOVA_model)
+
+
+
+library(car)
+anova(multi_model, type = "III")
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(ANCOVA_model)
+```
+
+
+try interaction between 2 variables:
+```{r}
+ANCOVA_model_2 = lm(Number_of_pickup ~ Temp_avg*Rain_Event, data = New_2015)
+anova(ANCOVA_model_2)
+```
+
+comparing the 2 models, there is no significant difference between the 2 models.
+```{r}
+anova(ANCOVA_model, ANCOVA_model_2)
+```
+
+#Fit polynomial regression
+```{r}
+poly_2= lm(Number_of_pickup ~ poly(Temp_avg, 2),data = New_2015)  
+summary(poly_2)
+
+poly_3= lm(Number_of_pickup ~ poly(Temp_avg, 3),data = New_2015)  
+summary(poly_3)
+```
+
+plot 
+```{r}
+library(ggplot2)
+ggplot(New_2015,aes(Temp_avg, Number_of_pickup))+ geom_point() + labs(title = ('Number_of_pickup vs Temp_avg Polynomial Regressions'),x = 'Temp_avg',yl = "Number_of_pickup")+ geom_line(data = fortify(poly_2),aes(x=New_2015$Temp_avg, y=.fitted),col='blue')+ geom_line(data = fortify(poly_3),aes(x=New_2015$Temp_avg, y=.fitted),col='green') + geom_smooth(method = 'auto') 
+
+```
+
+#Explore correlation relationship with average speed
+Merge weather with speed data 
+```{r}
+
+YC_Jan_June_merged=rbind(YC_2015_Jan_short,YC_2015_June)
+head(YC_Jan_June_merged)
+
+YC_Jan_June_merged$Date_2015 = as.Date(as.character(YC_Jan_June_merged$New_pickup_datetime, format = "%m/%d/%Y","EST"),format = "%m/%d/%Y")
+
+head(YC_Jan_June_merged)
+head(weather_2015)
+
+YC_Jan_June_merged_new=merge(YC_Jan_June_merged,weather_2015, by="Date_2015",all=FALSE)
+
+head(YC_Jan_June_merged_new,n=30)
+
+YC_Jan_June_merged_new$Temp_avg=as.numeric(YC_Jan_June_merged_new$Temp_avg)
+YC_Jan_June_merged_new$Temp_low=as.numeric(YC_Jan_June_merged_new$Temp_low)
+YC_Jan_June_merged_new$Precipitation_inch=as.numeric(YC_Jan_June_merged_new$Precipitation_inch)
+YC_Jan_June_merged_new$Weekday <- factor(wday(YC_Jan_June_merged_new$Date_2015))
+
+head(YC_Jan_June_merged_new)
+
+```
+
+??Get average speed by week day: but unable to retrieve it??
+```{r}
+speed_month <- group_by(YC_Jan_June_merged_new,Weekday) %>% mean(speed)
+ggplot(trips_hour_month, aes(Hour, Trips, fill = Month)) + geom_bar(stat = "identity") + ggtitle("No. of Uber Trips Happening in New York City Every Hour for Different Months") + scale_y_continuous() + scale_fill_manual(values = pal(6)) + facet_grid(Month ~ .)
+```
+
+```{r}
+plot(speed ~ Rain_Event, data=YC_Jan_June_merged_new)
+
+ggplot(YC_Jan_June_merged_new, aes(x=Rain_Event, y=speed)) + geom_boxplot()+ coord_cartesian(ylim = c(0, 90))
+
+```
+
+```{r}
+ANOVA_results_2= aov(speed ~ Rain_Event, data=YC_Jan_June_merged_new)
+summary(ANOVA_results_2)
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(ANOVA_results_2)
+```
+
+```{r}
+t.test(speed ~Rain_Event, data=YC_Jan_June_merged_new)
+```
+
+
+#Uni-variate linear modeling
+```{r}
+YC_lm_temp=lm(speed ~ Temp_avg, data = YC_Jan_June_merged_new)
+summary(YC_lm_temp)
+
+plot(speed ~ Temp_avg, data = YC_Jan_June_merged_new)+abline(YC_lm_temp,lwd=2)
+```
+
+```{r}
+YC_lm_precip=lm(speed ~ Precipitation_inch, data = YC_Jan_June_merged_new)
+summary(YC_lm_precip)
+
+
+plot(speed ~ Precipitation_inch, data = YC_Jan_June_merged_new)+abline(YC_lm_precip,lwd=2)
+```
+
+##check correlation of interaction term
+```{r}
+YC_lm_interaction = lm(speed ~ Temp_avg*Precipitation_inch, data = YC_Jan_June_merged_new)
+summary(YC_lm_interaction)
+```
+
+```{r}
+myvars = c("Temp_avg", "Precipitation_inch")
+
+library(RColorBrewer)
+library(ggplot2)
+library(lattice)
+
+pairs(YC_Jan_June_merged_new[myvars], pch = 15)
+```
+
+
+##check Pearson correlation
+```{r}
+correlation_1=cor.test(YC_Jan_June_merged_new$speed,YC_Jan_June_merged_new$Temp_avg,method='pearson')
+correlation_1
+```
+
+
+```{r}
+correlation_2=cor.test(YC_Jan_June_merged_new$speed,YC_Jan_June_merged_new$Precipitation_inch,method='pearson')
+correlation_2
+
+#the result is counter-intuitive because Precipitation_inch and Temp_avg do not have normal distribution. 
+```
+
+##MAKE pairwise scatterplot
+```{r}
+library(GGally)
+ggpairs(YC_Jan_June_merged_new[,c("speed", "Temp_avg", "Precipitation_inch")])
+```
+
